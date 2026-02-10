@@ -38,6 +38,7 @@ function HomeClient({ email }: { email: string }) {
   ];
   const handleLogOut = async () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const result = await axios.get("/api/auth/logout");
       window.location.href = "/";
     } catch (error) {
