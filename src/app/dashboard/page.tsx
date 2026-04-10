@@ -1,17 +1,13 @@
-/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
-
 import DashboardClient from "@/components/DashboardClient";
 import { getSession } from "@/lib/getSession";
-import React from "react";
+import { redirect } from "next/navigation";
 
-async function page() {
+export default async function DashboardPage() {
   const session = await getSession();
 
-  return (
-    <>
-      <DashboardClient ownerId={session?.user?.id!} />
-    </>
-  );
-}
+  if (!session?.user?.id) {
+    redirect("/");
+  }
 
-export default page;
+  return <DashboardClient ownerId={session.user.id} />;
+}

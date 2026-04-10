@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cookies } from "next/headers";
+import { logger } from "./logger";
 import { scalekit } from "./scalekit";
 
 export async function getSession() {
@@ -13,6 +14,7 @@ export async function getSession() {
     const user = await scalekit.user.getUser(result.sub);
     return user;
   } catch (error) {
-    console.log(error);
+    logger.error("Session validation failed", error);
+    return null;
   }
 }

@@ -1,20 +1,42 @@
 "use client";
-import { navigate } from "next/dist/client/components/segment-cache/navigation";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import axios from "axios";
+
 function EmbedClient({ ownerId }: { ownerId: string }) {
   const navigate = useRouter();
   const [copied, setCopied] = useState(false);
-  const embedCode = `<script 
-    src="${process.env.NEXT_PUBLIC_APP_URL}/chatBot.js" 
-    data-owner-id="${ownerId}">
-</script> `;
+  const [apiKey, setApiKey] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const result = await axios.post("/api/settings/get", { ownerId });
+        if (result.data?.apiKey) {
+          setApiKey(result.data.apiKey);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchApiKey();
+  }, [ownerId]);
+
+  const embedCode = `<script
+    src="${process.env.NEXT_PUBLIC_APP_URL}/chatBot.js"
+    data-api-key="${apiKey}">
+</script>`;
+
   const copyCode = () => {
     navigator.clipboard.writeText(embedCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="sticky top-0 z-40 bg-white border-b border-zinc-200">
@@ -39,30 +61,40 @@ function EmbedClient({ ownerId }: { ownerId: string }) {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-4xl  bg-white rounded-2xl shadow-xl p-10"
+          className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-10"
         >
           <h1 className="text-2xl font-semibold mb-2">Embed ChatBot</h1>
           <p>
             Copy and paste this code before <code>&lt;/body&gt;</code>
           </p>
-          <div className="relative bg-zinc-900 text-zinc-100 rounded-xl p-5 text-sm font-mono mb-10">
-            <pre className="overflow-x-auto">{embedCode}</pre>
-            <button
-              className="absolute top-3 right-3 bg-white text-zinc-900 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-zinc-200 transition"
-              onClick={copyCode}
-            >
-              {copied ? "Copied ✓" : "Copy"}
-            </button>
-          </div>
 
-          <ol className="space-y-3  text-sm text-zinc-600 list-decimal list-inside">
+          {loading ? (
+            <div className="my-10 h-24 bg-zinc-100 rounded-xl animate-pulse" />
+          ) : !apiKey ? (
+            <div className="my-10 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+              No API key found. Please save your settings on the Dashboard first
+              to generate an API key.
+            </div>
+          ) : (
+            <div className="relative bg-zinc-900 text-zinc-100 rounded-xl p-5 text-sm font-mono my-10">
+              <pre className="overflow-x-auto">{embedCode}</pre>
+              <button
+                className="absolute top-3 right-3 bg-white text-zinc-900 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-zinc-200 transition"
+                onClick={copyCode}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          )}
+
+          <ol className="space-y-3 text-sm text-zinc-600 list-decimal list-inside">
             <li>Copy the embed script</li>
             <li>Paste it before the closing body tag</li>
             <li>Reload your website</li>
           </ol>
 
           <div className="mt-14">
-            <h1 className="text-lg font-medium mb-2">Live Preview</h1>
+            <h2 className="text-lg font-medium mb-2">Live Preview</h2>
             <p className="text-sm text-zinc-500 mb-6">
               This is how the chatbot will appear on your website
             </p>
@@ -81,7 +113,7 @@ function EmbedClient({ ownerId }: { ownerId: string }) {
                 <div className="absolute bottom-24 right-6 w-64 bg-white rounded-xl shadow-xl border border-zinc-200 overflow-hidden">
                   <div className="bg-black text-white text-xs px-3 py-2 flex justify-between items-center">
                     <span>Customer Support</span>
-                    <span>╳</span>
+                    <span>x</span>
                   </div>
 
                   <div className="p-3 space-y-2 bg-zinc-50">
@@ -97,15 +129,15 @@ function EmbedClient({ ownerId }: { ownerId: string }) {
                   animate={{ y: [0, -8, 0] }}
                   transition={{ repeat: Infinity, duration: 3 }}
                   className="
-      absolute bottom-6 right-6
-      w-14 h-14 rounded-full
-      bg-black text-white
-      flex items-center justify-center
-      shadow-2xl
-      cursor-pointer
-    "
+                    absolute bottom-6 right-6
+                    w-14 h-14 rounded-full
+                    bg-black text-white
+                    flex items-center justify-center
+                    shadow-2xl
+                    cursor-pointer
+                  "
                 >
-                  🗨️
+                  Chat
                 </motion.div>
               </div>
             </div>

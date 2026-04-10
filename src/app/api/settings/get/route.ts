@@ -1,4 +1,5 @@
 import connectDb from "@/lib/db";
+import { logger } from "@/lib/logger";
 import Settings from "@/model/settings.model";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -15,8 +16,9 @@ export async function POST(req: NextRequest) {
     const setting = await Settings.findOne({ ownerId });
     return NextResponse.json(setting);
   } catch (error) {
+    logger.error("Settings fetch error", error);
     return NextResponse.json(
-      { message: `get setting error ${error}` },
+      { message: "failed to fetch settings" },
       { status: 500 },
     );
   }

@@ -1,22 +1,47 @@
 import connectDb from "@/lib/db";
+import { corsJson, corsOptions } from "@/lib/cors";
+import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rateLimit";
 import Settings from "@/model/settings.model";
 import { GoogleGenAI } from "@google/genai";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+
+interface ChatMessage {
+  role: "user" | "ai";
+  content: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, ownerId } = await req.json();
-    if (!message || !ownerId) {
-      return NextResponse.json(
-        { message: "message and owner id is required" },
+    // Rate limiting by IP
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!checkRateLimit(ip)) {
+      return corsJson(
+        { message: "too many requests, please try again later" },
+        { status: 429 },
+      );
+    }
+
+    const { message, apiKey, ownerId, history } = await req.json();
+    // Support both apiKey (new) and ownerId (legacy) lookup
+    const lookupKey = apiKey || ownerId;
+
+    if (!message || !lookupKey) {
+      return corsJson(
+        { message: "message and apiKey are required" },
         { status: 400 },
       );
     }
+
     await connectDb();
-    const setting = await Settings.findOne({ ownerId });
+    const setting = apiKey
+      ? await Settings.findOne({ apiKey })
+      : await Settings.findOne({ ownerId });
+
     if (!setting) {
-      return NextResponse.json(
-        { message: "chat bot is not configured yet." },
+      return corsJson(
+        { message: "chatbot is not configured yet." },
         { status: 400 },
       );
     }
@@ -24,8 +49,20 @@ export async function POST(req: NextRequest) {
     const KNOWLEDGE = `
         business name- ${setting.businessName || "not provided"}
         supportEmail- ${setting.supportEmail || "not provided"}
-        knowledge- ${setting.knowledge || " not provided"}
+        knowledge- ${setting.knowledge || "not provided"}
         `;
+
+    // Build conversation context from history
+    let conversationContext = "";
+    if (Array.isArray(history) && history.length > 0) {
+      const recentHistory = (history as ChatMessage[]).slice(-10);
+      conversationContext = recentHistory
+        .map(
+          (msg) =>
+            `${msg.role === "user" ? "Customer" : "Support Agent"}: ${msg.content}`,
+        )
+        .join("\n");
+    }
 
     const prompt = `
 You are a professional customer support assistant for this business.
@@ -34,14 +71,21 @@ Use ONLY the information provided below to answer the customer's question.
 You may rephrase, summarize, or interpret the information if needed.
 Do NOT invent new policies, prices, or promises.
 
-
-
 --------------------
 BUSINESS INFORMATION
 --------------------
 ${KNOWLEDGE}
 
+${
+  conversationContext
+    ? `--------------------
+CONVERSATION HISTORY
 --------------------
+${conversationContext}
+
+`
+    : ""
+}--------------------
 CUSTOMER QUESTION
 --------------------
 ${message}
@@ -57,30 +101,11 @@ ANSWER
       contents: prompt,
     });
 
-    const response = NextResponse.json(res.text);
-    response.headers.set("Access-Control-Allow-Origin", "*");
-    response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    return response;
+    return corsJson(res.text);
   } catch (error) {
-    const response = NextResponse.json(
-      { message: `chat error ${error}` },
-      { status: 500 },
-    );
-    response.headers.set("Access-Control-Allow-Origin", "*");
-    response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    return response;
+    logger.error("Chat error", error);
+    return corsJson({ message: "something went wrong" }, { status: 500 });
   }
 }
 
-export const OPTIONS = async () => {
-  return NextResponse.json(null, {
-    status: 201,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
-};
+export const OPTIONS = async () => corsOptions();

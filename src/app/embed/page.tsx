@@ -1,16 +1,13 @@
-/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
 import EmbedClient from "@/components/EmbedClient";
 import { getSession } from "@/lib/getSession";
-import React from "react";
+import { redirect } from "next/navigation";
 
-async function page() {
+export default async function EmbedPage() {
   const session = await getSession();
 
-  return (
-    <>
-      <EmbedClient ownerId={session?.user?.id!} />
-    </>
-  );
-}
+  if (!session?.user?.id) {
+    redirect("/");
+  }
 
-export default page;
+  return <EmbedClient ownerId={session.user.id} />;
+}
